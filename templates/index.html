@@ -1,0 +1,824 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Live Face Landmark Detection</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #060a0d;
+            --bg-panel: #0c1116;
+            --grid-line: rgba(0, 224, 255, 0.05);
+            --cyan: #00e0ff;
+            --cyan-dim: rgba(0, 224, 255, 0.35);
+            --green: #39ff9d;
+            --amber: #ffb020;
+            --red: #ff4d6d;
+            --text: #e7eef2;
+            --text-dim: #6c8290;
+            --mono: 'Space Mono', monospace;
+            --sans: 'Inter', -apple-system, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: var(--sans);
+            background:
+                radial-gradient(ellipse 900px 500px at 50% -10%, rgba(0, 224, 255, 0.08), transparent 60%),
+                repeating-linear-gradient(0deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 40px),
+                repeating-linear-gradient(90deg, var(--grid-line) 0px, var(--grid-line) 1px, transparent 1px, transparent 40px),
+                var(--bg);
+            color: var(--text);
+            text-align: center;
+            padding: 40px 16px 60px;
+            overflow-x: hidden;
+        }
+
+        /* ---------------- Header ---------------- */
+
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-family: var(--mono);
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--cyan);
+            opacity: 0;
+            animation: fadeUp 0.6s ease forwards;
+        }
+
+        .eyebrow::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--green);
+            box-shadow: 0 0 8px var(--green), 0 0 16px var(--green);
+            animation: blink 1.6s ease-in-out infinite;
+        }
+
+        h1 {
+            margin: 14px 0 6px;
+            font-family: var(--mono);
+            font-weight: 700;
+            font-size: clamp(24px, 4vw, 36px);
+            letter-spacing: 0.01em;
+            color: var(--text);
+            opacity: 0;
+            animation: fadeUp 0.6s ease 0.1s forwards;
+        }
+
+        h1 span {
+            color: var(--cyan);
+        }
+
+        .subtitle {
+            font-family: var(--sans);
+            font-size: 14px;
+            color: var(--text-dim);
+            max-width: 460px;
+            margin: 0 auto 26px;
+            opacity: 0;
+            animation: fadeUp 0.6s ease 0.18s forwards;
+        }
+
+        #status {
+            display: inline-block;
+            margin: 0 0 22px;
+            padding: 8px 18px;
+            font-family: var(--mono);
+            font-size: 13px;
+            letter-spacing: 0.06em;
+            color: var(--cyan);
+            background: rgba(0, 224, 255, 0.06);
+            border: 1px solid var(--cyan-dim);
+            border-radius: 100px;
+            transition: color 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+            opacity: 0;
+            animation: fadeUp 0.6s ease 0.26s forwards;
+        }
+
+        /* ---------------- Buttons ---------------- */
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 30px;
+            opacity: 0;
+            animation: fadeUp 0.6s ease 0.34s forwards;
+        }
+
+        button {
+            position: relative;
+            padding: 13px 30px;
+            font-family: var(--mono);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: transform 0.15s ease, box-shadow 0.25s ease, filter 0.2s ease;
+        }
+
+        button:active {
+            transform: scale(0.96);
+        }
+
+        #startButton {
+            background: linear-gradient(180deg, #00f0ff, #00b3cc);
+            color: #04141a;
+            box-shadow: 0 0 0 1px rgba(0, 224, 255, 0.4), 0 6px 24px rgba(0, 224, 255, 0.25);
+        }
+
+        #startButton:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 0 0 1px rgba(0, 224, 255, 0.6), 0 8px 30px rgba(0, 224, 255, 0.4);
+        }
+
+        #closeButton {
+            display: none;
+            background: transparent;
+            color: var(--red);
+            border-color: rgba(255, 77, 109, 0.5);
+        }
+
+        #closeButton:hover {
+            background: rgba(255, 77, 109, 0.1);
+            box-shadow: 0 0 20px rgba(255, 77, 109, 0.2);
+        }
+
+        /* ---------------- Camera frame ---------------- */
+
+        .camera-container {
+            position: relative;
+            display: inline-block;
+            width: 640px;
+            max-width: 95%;
+            border-radius: 14px;
+            padding: 14px;
+            background: linear-gradient(180deg, #0e151b, #090d11);
+            border: 1px solid rgba(0, 224, 255, 0.15);
+            box-shadow:
+                0 0 0 1px rgba(0, 0, 0, 0.4),
+                0 20px 60px rgba(0, 0, 0, 0.6),
+                inset 0 0 40px rgba(0, 224, 255, 0.03);
+            opacity: 0;
+            animation: frameIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+        }
+
+        .camera-inner {
+            position: relative;
+            border-radius: 8px;
+            overflow: hidden;
+            line-height: 0;
+            background: #000;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+            border-radius: 8px;
+            transform: scaleX(-1);
+            filter: saturate(1.05) contrast(1.03);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+            pointer-events: none;
+        }
+
+        /* corner brackets */
+        .bracket {
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border: 2px solid var(--cyan);
+            opacity: 0.85;
+            z-index: 3;
+            pointer-events: none;
+            filter: drop-shadow(0 0 4px rgba(0, 224, 255, 0.6));
+        }
+
+        .bracket.tl { top: 8px; left: 8px; border-right: none; border-bottom: none; border-radius: 4px 0 0 0; }
+        .bracket.tr { top: 8px; right: 8px; border-left: none; border-bottom: none; border-radius: 0 4px 0 0; }
+        .bracket.bl { bottom: 8px; left: 8px; border-right: none; border-top: none; border-radius: 0 0 0 4px; }
+        .bracket.br { bottom: 8px; right: 8px; border-left: none; border-top: none; border-radius: 0 0 4px 0; }
+
+        /* animated scan line sweeping the frame */
+        .scan-line {
+            position: absolute;
+            left: 4%;
+            right: 4%;
+            height: 2px;
+            top: 0;
+            background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+            box-shadow: 0 0 12px 2px rgba(0, 224, 255, 0.7);
+            z-index: 3;
+            pointer-events: none;
+            animation: scanSweep 3.2s ease-in-out infinite;
+            opacity: 0.9;
+        }
+
+        /* corner readouts */
+        .readout {
+            position: absolute;
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: 0.05em;
+            color: var(--cyan);
+            opacity: 0.65;
+            z-index: 3;
+            pointer-events: none;
+            text-shadow: 0 0 6px rgba(0, 224, 255, 0.5);
+        }
+
+        .readout.top-left { top: 14px; left: 40px; }
+        .readout.bottom-right { bottom: 14px; right: 40px; text-align: right; }
+
+        /* ---------------- Footer note ---------------- */
+
+        .footnote {
+            margin-top: 22px;
+            font-family: var(--mono);
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            color: var(--text-dim);
+            opacity: 0;
+            animation: fadeUp 0.6s ease 0.5s forwards;
+        }
+
+        /* ---------------- Keyframes ---------------- */
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes frameIn {
+            from { opacity: 0; transform: scale(0.97); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.35; }
+        }
+
+        @keyframes scanSweep {
+            0% { top: 4%; opacity: 0; }
+            10% { opacity: 0.9; }
+            50% { top: 94%; opacity: 0.9; }
+            60% { opacity: 0; }
+            100% { top: 4%; opacity: 0; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.001ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.001ms !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .readout { display: none; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="eyebrow">Live Vision Module</div>
+
+<h1>Facial <span>Landmark</span> Detection</h1>
+<p class="subtitle">Real-time tracking rendered directly on your camera feed. Nothing leaves this browser.</p>
+
+<p id="status">
+    Loading MediaPipe...
+</p>
+
+<div class="controls">
+    <button id="startButton">Start Camera</button>
+    <button id="closeButton">Close Camera</button>
+</div>
+
+<div class="camera-container">
+    <div class="camera-inner">
+        <video
+            id="webcam"
+            autoplay
+            playsinline>
+        </video>
+
+        <canvas id="outputCanvas"></canvas>
+
+        <div class="scan-line"></div>
+        <div class="bracket tl"></div>
+        <div class="bracket tr"></div>
+        <div class="bracket bl"></div>
+        <div class="bracket br"></div>
+        <div class="readout top-left">CAM_01 // TRACKING</div>
+        <div class="readout bottom-right">MEDIAPIPE // 468 PTS</div>
+    </div>
+</div>
+
+<p class="footnote">// press start to initialize the video stream</p>
+
+
+<script type="module">
+
+import {
+    FaceLandmarker,
+    FilesetResolver
+}
+from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest";
+
+
+const video =
+    document.getElementById("webcam");
+
+const canvas =
+    document.getElementById("outputCanvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+const statusText =
+    document.getElementById("status");
+
+const startButton =
+    document.getElementById("startButton");
+
+const closeButton =
+    document.getElementById("closeButton");
+
+
+let faceLandmarker = null;
+let lastVideoTime = -1;
+let animationId = null;
+let cameraStream = null;
+
+
+// -------------------------------
+// Facial feature landmark IDs
+// -------------------------------
+
+const facialFeatures = {
+    "Right Eye": 33,
+    "Left Eye": 263,
+    "Nose": 1,
+    "Lips": 13,
+    "Chin": 152
+};
+
+
+// -------------------------------
+// Landmark smoothing
+// -------------------------------
+
+const smoothedLandmarks = {};
+
+// smaller = smoother
+// larger = reacts faster
+const smoothingFactor = 0.25;
+
+
+function smoothPoint(name, x, y) {
+
+    if (!smoothedLandmarks[name]) {
+
+        smoothedLandmarks[name] = {
+            x: x,
+            y: y
+        };
+
+    }
+
+    smoothedLandmarks[name].x =
+        smoothedLandmarks[name].x +
+        smoothingFactor *
+        (x - smoothedLandmarks[name].x);
+
+    smoothedLandmarks[name].y =
+        smoothedLandmarks[name].y +
+        smoothingFactor *
+        (y - smoothedLandmarks[name].y);
+
+    return smoothedLandmarks[name];
+}
+
+
+// -------------------------------
+// Load MediaPipe
+// -------------------------------
+
+async function initializeFaceLandmarker() {
+
+    try {
+
+        statusText.innerText =
+            "Loading MediaPipe Face Landmarker...";
+
+        const vision =
+            await FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+            );
+
+        faceLandmarker =
+            await FaceLandmarker.createFromOptions(
+                vision,
+                {
+                    baseOptions: {
+                        modelAssetPath:
+                            "/static/face_landmarker.task",
+
+                        delegate: "GPU"
+                    },
+
+                    runningMode: "VIDEO",
+
+                    numFaces: 1,
+
+                    minFaceDetectionConfidence: 0.5,
+
+                    minFacePresenceConfidence: 0.5,
+
+                    minTrackingConfidence: 0.5
+                }
+            );
+
+        statusText.innerText =
+            "MediaPipe loaded. Click Start Camera.";
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        statusText.innerText =
+            "Failed to load MediaPipe.";
+
+    }
+
+}
+
+
+initializeFaceLandmarker();
+
+
+// -------------------------------
+// Start camera
+// -------------------------------
+
+startButton.addEventListener(
+    "click",
+    startCamera
+);
+
+
+async function startCamera() {
+
+    if (!faceLandmarker) {
+
+        alert("MediaPipe is still loading.");
+
+        return;
+    }
+
+
+    try {
+
+        cameraStream =
+            await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: 640,
+                    height: 480
+                }
+            });
+
+
+        video.srcObject =
+            cameraStream;
+
+
+        await video.play();
+
+
+        startButton.style.display =
+            "none";
+
+        closeButton.style.display =
+            "inline-block";
+
+
+        statusText.innerText =
+            "Camera running";
+
+
+        predictWebcam();
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        statusText.innerText =
+            "Could not access webcam.";
+
+    }
+
+}
+
+
+// -------------------------------
+// Close camera
+// -------------------------------
+
+closeButton.addEventListener(
+    "click",
+    closeCamera
+);
+
+
+function closeCamera() {
+
+    if (animationId) {
+
+        cancelAnimationFrame(animationId);
+
+        animationId = null;
+
+    }
+
+
+    if (cameraStream) {
+
+        cameraStream
+            .getTracks()
+            .forEach(track => track.stop());
+
+        cameraStream = null;
+
+    }
+
+
+    video.srcObject = null;
+
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    for (const key in smoothedLandmarks) {
+
+        delete smoothedLandmarks[key];
+
+    }
+
+
+    lastVideoTime = -1;
+
+
+    statusText.innerText =
+        "Camera closed";
+
+
+    startButton.style.display =
+        "inline-block";
+
+    closeButton.style.display =
+        "none";
+
+}
+
+
+// -------------------------------
+// Detection loop
+// -------------------------------
+
+function predictWebcam() {
+
+    if (!cameraStream) {
+
+        return;
+
+    }
+
+
+    if (
+        canvas.width !== video.videoWidth ||
+        canvas.height !== video.videoHeight
+    ) {
+
+        canvas.width =
+            video.videoWidth;
+
+        canvas.height =
+            video.videoHeight;
+
+    }
+
+
+    if (
+        video.readyState >= 2 &&
+        video.currentTime !== lastVideoTime
+    ) {
+
+        lastVideoTime =
+            video.currentTime;
+
+
+        const results =
+            faceLandmarker.detectForVideo(
+                video,
+                performance.now()
+            );
+
+
+        drawResults(results);
+
+    }
+
+
+    animationId =
+        requestAnimationFrame(
+            predictWebcam
+        );
+
+}
+
+
+// -------------------------------
+// Draw results
+// -------------------------------
+
+function drawResults(results) {
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    if (
+        !results.faceLandmarks ||
+        results.faceLandmarks.length === 0
+    ) {
+
+        statusText.innerText =
+            "No face detected";
+
+        return;
+    }
+
+
+    statusText.innerText =
+        "Face detected";
+
+
+    const landmarks =
+        results.faceLandmarks[0];
+
+
+    // Draw all landmark dots
+    ctx.fillStyle =
+        "lime";
+
+
+    for (
+        const landmark of landmarks
+    ) {
+
+        const x =
+            landmark.x *
+            canvas.width;
+
+        const y =
+            landmark.y *
+            canvas.height;
+
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y,
+            1.2,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    }
+
+
+    // Draw selected labels
+    for (
+        const [name, index]
+        of Object.entries(
+            facialFeatures
+        )
+    ) {
+
+        const landmark =
+            landmarks[index];
+
+
+        const rawX =
+            landmark.x *
+            canvas.width;
+
+        const rawY =
+            landmark.y *
+            canvas.height;
+
+
+        const smooth =
+            smoothPoint(
+                name,
+                rawX,
+                rawY
+            );
+
+
+        const x =
+            smooth.x;
+
+        const y =
+            smooth.y;
+
+
+        // Feature point
+        ctx.fillStyle =
+            "red";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y,
+            5,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+// Text label (counter-flip so it doesn't render backward)
+        ctx.font =
+            "18px Arial";
+
+        ctx.fillStyle =
+            "yellow";
+
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.fillText(
+            name,
+            -(x + 10),
+            y - 10
+        );
+        ctx.restore();
+    }
+
+}
+
+</script>
+
+</body>
+
+</html>
+
+{% endraw %}
