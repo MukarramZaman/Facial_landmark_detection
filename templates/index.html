@@ -317,7 +317,7 @@
 <p class="subtitle">Real-time tracking rendered directly on your camera feed. Nothing leaves this browser.</p>
 
 <p id="status">
-    Loading MediaPipe...
+    Please wait a few seconds — loading MediaPipe (first time only)...
 </p>
 
 <div class="controls">
@@ -440,7 +440,7 @@ async function initializeFaceLandmarker() {
     try {
 
         statusText.innerText =
-            "Loading MediaPipe Face Landmarker...";
+           "Please wait a few seconds — loading MediaPipe (first time only)...";
 
         const vision =
             await FilesetResolver.forVisionTasks(
@@ -504,7 +504,7 @@ async function startCamera() {
 
     if (!faceLandmarker) {
 
-        alert("MediaPipe is still loading.");
+        alert("MediaPipe is still loading.please wait few seconds more");
 
         return;
     }
