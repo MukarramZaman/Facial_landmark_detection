@@ -317,7 +317,7 @@
 <h1>Facial <span>Landmark</span> Detection</h1>
 <p class="subtitle">Real-time tracking rendered directly on your camera feed. Nothing leaves this browser.</p>
 
-<p id="status">
+<p id="status" style="color: white; background: red;">
     Please wait a few seconds — loading MediaPipe (first time only)...
 </p>
 
@@ -473,6 +473,8 @@ async function initializeFaceLandmarker() {
 
         statusText.innerText =
             "MediaPipe loaded. Click Start Camera.";
+            statusText.style.color="white"
+            statusText.style.background="green";
 
     }
 
@@ -550,6 +552,8 @@ async function startCamera() {
 
         statusText.innerText =
             "Could not access webcam.";
+            statusText.style.color="white"
+            statusText.style.background="black";
 
     }
 
@@ -611,7 +615,8 @@ function closeCamera() {
 
     statusText.innerText =
         "Camera closed";
-
+        statusText.style.color="white"
+            statusText.style.background="black";
 
     startButton.style.display =
         "inline-block";
